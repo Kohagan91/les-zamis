@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Les Z'amis - Le Jeu P2P WebRTC</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <!-- QRCode JS Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- PeerJS WebRTC Library -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        display: ['Fredoka', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            pink: '#FF2E93',
+                            purple: '#8B5CF6',
+                            yellow: '#FFC700',
+                            cyan: '#00F0FF',
+                            dark: '#0F172A',
+                            card: '#1E293B',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-short': 'bounce 0.6s infinite alternate',
+                        'glow': 'glow 2s infinite alternate',
+                    },
+                    keyframes: {
+                        glow: {
+                            '0%': { boxShadow: '0 0 15px rgba(255, 46, 147, 0.4)' },
+                            '100%': { boxShadow: '0 0 30px rgba(0, 240, 255, 0.7)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top center, #2e1065 0%, #0f172a 70%);
+        }
+        .font-display { font-family: 'Fredoka', sans-serif; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #8B5CF6; border-radius: 4px; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .neon-text-pink { text-shadow: 0 0 12px rgba(255, 46, 147, 0.6); }
+        .neon-text-yellow { text-shadow: 0 0 12px rgba(255, 199, 0, 0.6); }
+        .neon-text-cyan { text-shadow: 0 0 12px rgba(0, 240, 255, 0.6); }
+
+        #qrcode img {
+            margin: 0 auto;
+            border-radius: 0.75rem;
+            padding: 0.5rem;
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body class="h-full min-h-screen flex flex-col justify-between text-slate-100 select-none overflow-x-hidden">
+
+    <!-- Header Navigation -->
+    <header class="w-full glass-panel border-b border-slate-800 px-4 py-3 sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <!-- Logo -->
+            <div class="flex items-center space-x-2.5 cursor-pointer" onclick="location.href=location.pathname">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-pink to-brand-yellow flex items-center justify-center transform -rotate-6 shadow-lg">
+                    <i class="fa-solid fa-heart-pulse text-xl text-slate-950"></i>
+                </div>
+                <div>
+                    <h1 class="font-display text-xl font-black bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-cyan bg-clip-text text-transparent leading-none">
+                        LES Z'AMIS
+                    </h1>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Peer-To-Peer Direct (WebRTC)</p>
+                </div>
+            </div>
+
+            <!-- Header Connection & ROOM CODE Badge -->
+            <div class="flex items-center gap-3">
+                <!-- CONSTANT ROOM CODE BADGE -->
+                <div id="room-code-badge" class="hidden px-3.5 py-1.5 bg-slate-900 border-2 border-brand-yellow/80 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-brand-yellow/10">
+                    <span class="text-slate-400 text-[10px] uppercase font-black">CODE ROOM:</span>
+                    <span id="header-room-code" class="text-brand-yellow font-mono text-base font-black tracking-widest neon-text-yellow">----</span>
+                </div>
+
+                <div id="connection-indicator" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                    <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                    <span id="conn-text" class="text-[11px] text-slate-400 font-semibold">Inactif</span>
+                </div>
+
+                <button onclick="app.toggleSound()" id="sound-btn" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-sm">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-10px]">
+        <div id="toast-content" class="px-4 py-2.5 rounded-2xl bg-slate-900 text-white font-semibold text-xs border border-brand-pink/50 shadow-2xl flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-brand-pink"></i>
+            <span id="toast-msg">Message</span>
+        </div>
+    </div>
+
+    <!-- Main Dynamic Viewport -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 flex flex-col justify-center">
+
+        <!-- TV HOST GLOBAL FLOATING BANNER FOR ROOM CODE (Visible during gameplay) -->
+        <div id="tv-code-overlay-banner" class="hidden w-full mb-4 px-4 py-2 bg-slate-900/90 border-2 border-brand-pink/60 rounded-2xl flex items-center justify-between shadow-xl">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs font-bold text-slate-300 uppercase">En retard ? Rejoins maintenant :</span>
+            </div>
+            <div class="flex items-center gap-3 font-mono">
+                <span class="text-xs text-slate-400">CODE :</span>
+                <span id="tv-banner-room-code" class="text-xl font-black text-brand-yellow tracking-widest neon-text-yellow">----</span>
+            </div>
+        </div>
+
+        <!-- 1. LANDING & ROLE SELECTION -->
+        <div id="screen-landing" class="space-y-6 py-4">
+            <div class="text-center space-y-3">
+                <span class="px-3.5 py-1 rounded-full bg-brand-pink/20 text-brand-pink border border-brand-pink/30 font-bold text-xs uppercase tracking-widest">
+                    P2P Sans Inscription
+                </span>
+                <h2 class="font-display text-4xl sm:text-6xl font-black tracking-tight">
+                    Qui connaît le mieux ses <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-cyan">Potes</span> ?
+                </h2>
+                <p class="text-slate-300 text-sm sm:text-base max-w-lg mx-auto">
+                    Créez un écran TV pour la soirée ou rejoignez directement la partie avec votre smartphone !
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl mx-auto pt-2">
+                <!-- TV / HOST ROLE -->
+                <div class="glass-panel rounded-3xl p-6 border border-brand-pink/40 hover:border-brand-pink transition-all flex flex-col justify-between space-y-4 shadow-xl hover:shadow-brand-pink/20">
+                    <div class="space-y-3">
+                        <div class="w-12 h-12 rounded-2xl bg-brand-pink/20 text-brand-pink flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-tv"></i>
+                        </div>
+                        <h3 class="font-display text-2xl font-bold text-white">Mode Grand Écran / TV</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Affiche le Code de la Room en grand, le QR code, les questions, le timer et le classement général.
+                        </p>
+                    </div>
+                    <button onclick="app.initHost()" class="w-full py-4 bg-gradient-to-r from-brand-pink to-brand-purple hover:opacity-90 text-white font-black rounded-2xl shadow-lg transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus-circle"></i> Créer le Salon TV
+                    </button>
+                </div>
+
+                <!-- PLAYER / SMARTPHONE ROLE -->
+                <div class="glass-panel rounded-3xl p-6 border border-brand-cyan/40 hover:border-brand-cyan transition-all flex flex-col justify-between space-y-4 shadow-xl hover:shadow-brand-cyan/20">
+                    <div class="space-y-3">
+                        <div class="w-12 h-12 rounded-2xl bg-brand-cyan/20 text-brand-cyan flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-mobile-screen-button"></i>
+                        </div>
+                        <h3 class="font-display text-2xl font-bold text-white">Mode Joueur / Smartphone</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Rejoignez une partie existante pour répondre en secret depuis votre propre téléphone.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <input type="text" id="join-code-input" placeholder="CODE DU SALON (EX: ABCD)" maxlength="6"
+                               class="w-full text-center tracking-widest font-mono font-bold bg-slate-900 border border-slate-700 rounded-xl py-3 text-brand-yellow uppercase text-lg focus:outline-none focus:border-brand-cyan">
+                        <button onclick="app.showJoinForm()" class="w-full py-4 bg-brand-cyan hover:bg-cyan-400 text-slate-950 font-black rounded-2xl shadow-lg transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-right-to-bracket"></i> Rejoindre la Partie
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. PLAYER JOIN SETUP (CLIENT) -->
+        <div id="screen-player-setup" class="hidden max-w-md mx-auto w-full py-4 space-y-5">
+            <div class="glass-panel rounded-3xl p-6 space-y-5 border border-brand-cyan/40 shadow-2xl">
+                <div class="text-center space-y-1">
+                    <h3 class="font-display text-2xl font-bold text-white">Ton Profil de Joueur</h3>
+                    <p class="text-xs text-slate-400">Choisis ton pseudo et ton avatar pour la soirée !</p>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="block text-xs font-bold text-slate-300 uppercase">Mon Pseudo :</label>
+                    <input type="text" id="player-nickname" placeholder="Ton prénom ou surnom" maxlength="15"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-cyan font-bold text-base">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-300 uppercase">Mon Avatar :</label>
+                    <div id="avatar-grid" class="grid grid-cols-6 gap-2 pt-1">
+                        <!-- Dynamic Emojis -->
+                    </div>
+                </div>
+
+                <button onclick="app.connectPlayerToHost()" class="w-full py-4 bg-gradient-to-r from-brand-cyan to-blue-500 hover:opacity-90 text-slate-950 font-black rounded-2xl shadow-xl transition-all text-sm uppercase tracking-wider">
+                    S'inscrire & Entrer
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. HOST LOBBY ROOM (TV VIEW) -->
+        <div id="screen-host-lobby" class="hidden space-y-6 py-2 text-center">
+            <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-brand-pink/50 shadow-2xl">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <div class="text-left">
+                        <span class="px-3 py-1 bg-brand-pink/20 text-brand-pink border border-brand-pink/30 rounded-full font-bold text-xs uppercase">
+                            Salon de l'Hôte TV
+                        </span>
+                        <h2 class="font-display text-2xl font-bold text-white mt-1">En attente des potes...</h2>
+                    </div>
+
+                    <!-- HUGE VISIBLE ROOM CODE -->
+                    <div class="bg-slate-900/90 px-5 py-2.5 rounded-2xl border-2 border-brand-yellow/80 shadow-lg text-right">
+                        <span class="text-[10px] text-slate-400 uppercase font-black block">CODE DE LA ROOM</span>
+                        <span id="tv-room-code" class="font-mono text-3xl md:text-4xl font-black text-brand-yellow tracking-widest neon-text-yellow">----</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <!-- QR Code Panel with CLEAR CODE BELOW IT -->
+                    <div class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 space-y-3">
+                        <p class="text-xs font-bold text-slate-300 uppercase">1. Scannez avec votre téléphone :</p>
+                        <div id="qrcode" class="p-2 inline-block"></div>
+                        <div class="pt-2 border-t border-slate-800">
+                            <p class="text-xs text-slate-400">2. Ou entrez le code sur le site :</p>
+                            <p id="tv-room-code-sub" class="font-mono text-2xl font-black text-brand-yellow tracking-widest mt-1">----</p>
+                        </div>
+                    </div>
+
+                    <!-- Joined Players List & Settings -->
+                    <div class="space-y-4 text-left">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-slate-300 uppercase">Joueurs Connectés (<span id="tv-player-count">0</span>) :</h4>
+                            <span class="text-[10px] text-emerald-400 font-bold px-2 py-0.5 bg-emerald-950/60 rounded-md border border-emerald-500/30 animate-pulse">
+                                P2P Direct
+                            </span>
+                        </div>
+
+                        <div id="tv-player-list" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                            <!-- Dynamic Joined Players -->
+                        </div>
+
+                        <!-- Leader Mode Setting -->
+                        <div class="pt-3 border-t border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-bold text-slate-300"><i class="fa-solid fa-crown text-brand-yellow mr-1"></i> Mode de jeu :</span>
+                                <select id="leader-mode-select" onchange="app.setLeaderMode(this.value)"
+                                        class="bg-slate-900 border border-slate-700 text-brand-pink font-bold px-3 py-1.5 rounded-xl focus:outline-none">
+                                    <option value="ROTATING" selected>🔄 Leader Rotatif (À tour de rôle)</option>
+                                    <option value="FIXED">👑 Super Leader Fixe (Une personne)</option>
+                                </select>
+                            </div>
+
+                            <!-- Fixed Leader Selector (Visible only in FIXED mode) -->
+                            <div id="fixed-leader-container" class="hidden flex justify-between items-center text-xs bg-slate-900/80 p-2.5 rounded-xl border border-brand-pink/40">
+                                <span class="font-bold text-brand-yellow">Choisir le Super Leader :</span>
+                                <select id="fixed-leader-select" onchange="app.setFixedLeader(this.value)"
+                                        class="bg-slate-950 border border-brand-pink text-white font-bold px-3 py-1.5 rounded-xl focus:outline-none max-w-[180px] truncate">
+                                    <option value="">-- Sélectionner --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Timer Option Setting -->
+                        <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                            <span class="font-bold text-slate-300"><i class="fa-solid fa-stopwatch text-brand-yellow mr-1"></i> Minuteur / Temps :</span>
+                            <select id="timer-setting-select" onchange="app.setTimerDuration(this.value)"
+                                    class="bg-slate-900 border border-slate-700 text-brand-yellow font-bold px-3 py-1.5 rounded-xl focus:outline-none">
+                                <option value="15">15 secondes</option>
+                                <option value="30" selected>30 secondes (Conseillé)</option>
+                                <option value="45">45 secondes</option>
+                                <option value="60">60 secondes</option>
+                                <option value="0">Désactivé (Illimité)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Host Controls & Custom Questions -->
+                <div class="pt-4 border-t border-slate-800 flex flex-col md:flex-row gap-3">
+                    <button onclick="app.toggleCustomQModal()" class="py-3 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold rounded-xl flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i> Ajouter des Questions Personnalisées
+                    </button>
+                    <button onclick="app.startHostGame()" class="flex-1 py-4 bg-gradient-to-r from-brand-yellow via-brand-pink to-brand-cyan hover:opacity-90 text-slate-950 font-black text-lg rounded-2xl shadow-xl transition-all uppercase tracking-wider">
+                        <i class="fa-solid fa-play mr-2"></i> Lancer la Partie !
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. PLAYER WAITING LOBBY (SMARTPHONE VIEW) -->
+        <div id="screen-client-waiting" class="hidden text-center py-8 space-y-6">
+            <div class="glass-panel rounded-3xl p-8 space-y-5 border border-brand-cyan/40">
+                <div class="w-20 h-20 mx-auto rounded-3xl bg-brand-cyan/20 text-brand-cyan flex items-center justify-center text-4xl animate-bounce-short">
+                    <i class="fa-solid fa-gamepad"></i>
+                </div>
+                <div>
+                    <h3 class="font-display text-3xl font-bold text-white">Tu es connecté !</h3>
+                    <p class="text-xs text-slate-300 mt-2">Ton prénom apparaît sur le grand écran TV.</p>
+                </div>
+                <div class="p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-xs text-brand-yellow font-bold">
+                    <i class="fa-solid fa-spinner fa-spin mr-1"></i> En attente du lancement par l'Hôte...
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. GAMEPLAY: LEADER PHASE -->
+        <div id="screen-game-leader" class="hidden py-2 space-y-5">
+            <!-- TV / HOST VIEW FOR LEADER PHASE -->
+            <div id="host-leader-view" class="hidden glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-brand-pink/50 text-center">
+                <div class="flex justify-between items-center">
+                    <span class="px-3 py-1 bg-brand-pink/20 text-brand-pink border border-brand-pink/30 rounded-full font-bold text-xs uppercase">
+                        Question <span id="host-q-round">1</span> / <span id="host-q-total">10</span>
+                    </span>
+
+                    <!-- TIMER DISPLAY -->
+                    <div id="timer-box-leader" class="px-4 py-1.5 bg-slate-900 border border-brand-yellow/60 rounded-xl text-brand-yellow font-mono font-bold text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-clock animate-pulse"></i>
+                        <span id="timer-count-leader">30s</span>
+                    </div>
+
+                    <span class="text-xs text-slate-400 font-semibold">Tour du Super Leader</span>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 id="host-q-leader-name" class="font-display text-2xl md:text-3xl font-black text-brand-yellow">
+                        ...
+                    </h3>
+                    <p id="host-q-text-1" class="font-display text-xl md:text-3xl font-bold text-white leading-snug">
+                        ...
+                    </p>
+                </div>
+
+                <div class="p-6 bg-slate-900/90 rounded-2xl border border-brand-pink/30 space-y-2">
+                    <div class="text-brand-pink text-3xl animate-pulse">
+                        <i class="fa-solid fa-user-secret"></i>
+                    </div>
+                    <p class="text-sm font-bold text-slate-200">
+                        <span id="host-leader-nickname-span" class="text-brand-pink">Le Leader</span> est en train de choisir sa réponse en secret sur son téléphone...
+                    </p>
+                </div>
+            </div>
+
+            <!-- SMARTPHONE VIEW FOR LEADER (THE LEADER HIMSELF) -->
+            <div id="client-leader-active" class="hidden glass-panel rounded-3xl p-6 space-y-5 border border-brand-pink/60">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <span class="px-2.5 py-1 bg-brand-pink text-slate-950 font-black text-xs rounded-xl uppercase">C'est ton tour !</span>
+                    
+                    <span id="client-timer-leader" class="text-brand-yellow font-mono text-xs font-bold">⏱️ 30s</span>
+
+                    <span class="text-xs text-slate-300 font-semibold">Super Leader 👑</span>
+                </div>
+
+                <div class="space-y-2">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Question :</p>
+                    <h3 id="client-q-text-leader" class="font-display text-xl font-bold text-white leading-snug">
+                        ...
+                    </h3>
+                </div>
+
+                <p class="text-xs text-brand-yellow font-bold">
+                    <i class="fa-solid fa-lock mr-1"></i> Choisis TA VRAIE réponse en secret :
+                </p>
+
+                <div id="client-leader-options" class="space-y-2.5">
+                    <!-- Dynamic choices -->
+                </div>
+            </div>
+
+            <!-- SMARTPHONE VIEW FOR NON-LEADERS (WAITING LEADER CHOICE) -->
+            <div id="client-leader-waiting" class="hidden glass-panel rounded-3xl p-6 text-center space-y-4">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-brand-pink/20 text-brand-pink flex items-center justify-center text-3xl animate-bounce-short">
+                    <i class="fa-solid fa-user-ninja"></i>
+                </div>
+                <h3 class="font-display text-2xl font-bold text-white">
+                    <span id="active-leader-name-target" class="text-brand-pink">Leader</span> choisit en secret...
+                </h3>
+                <p class="text-xs text-slate-300">
+                    Regardez la TV ou votre écran, le vote des amis arrive tout de suite !
+                </p>
+            </div>
+        </div>
+
+        <!-- 6. GAMEPLAY: FRIENDS VOTE PHASE -->
+        <div id="screen-game-vote" class="hidden py-2 space-y-5">
+            <!-- TV / HOST VIEW FOR VOTING -->
+            <div id="host-vote-view" class="hidden glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-brand-cyan/50 text-center">
+                <div class="flex justify-between items-center">
+                    <span class="px-3 py-1 bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30 rounded-full font-bold text-xs uppercase">
+                        Vote des Amis en direct
+                    </span>
+
+                    <!-- TIMER DISPLAY -->
+                    <div id="timer-box-vote" class="px-4 py-1.5 bg-slate-900 border border-brand-cyan/60 rounded-xl text-brand-cyan font-mono font-bold text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-clock animate-pulse"></i>
+                        <span id="timer-count-vote">30s</span>
+                    </div>
+
+                    <span class="text-xs text-slate-400 font-semibold">Devinez pour <strong id="host-vote-target-leader" class="text-brand-yellow">Leader</strong></span>
+                </div>
+
+                <h3 id="host-q-text-2" class="font-display text-xl md:text-3xl font-bold text-white leading-snug">
+                    ...
+                </h3>
+
+                <!-- Live Track Player Vote Status -->
+                <div class="space-y-3 pt-2">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Suivi des réponses reçues en P2P :</p>
+                    <div id="host-live-votes-grid" class="flex flex-wrap gap-2 justify-center">
+                        <!-- Dynamic Vote Chips -->
+                    </div>
+                </div>
+
+                <button onclick="app.hostForceReveal()" class="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-xs font-bold text-slate-400 rounded-xl border border-slate-700">
+                    ⚡ Passer / Révéler immédiatement (Hôte)
+                </button>
+            </div>
+
+            <!-- SMARTPHONE VIEW FOR FRIENDS VOTING -->
+            <div id="client-vote-active" class="hidden glass-panel rounded-3xl p-6 space-y-5 border border-brand-cyan/50">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <span class="px-2.5 py-1 bg-brand-cyan text-slate-950 font-black text-xs rounded-xl uppercase">À toi de voter !</span>
+
+                    <span id="client-timer-vote" class="text-brand-cyan font-mono text-xs font-bold">⏱️ 30s</span>
+
+                    <span class="text-xs text-slate-300 font-semibold">Devine pour <strong id="client-target-leader" class="text-brand-yellow">Leader</strong></span>
+                </div>
+
+                <div class="space-y-1">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Question :</p>
+                    <h3 id="client-q-text-vote" class="font-display text-lg font-bold text-white leading-snug">
+                        ...
+                    </h3>
+                </div>
+
+                <div id="client-voted-notice" class="hidden p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl text-center text-xs font-bold text-emerald-300">
+                    <i class="fa-solid fa-check-circle mr-1"></i> Réponse transmise au grand écran ! En attente des autres...
+                </div>
+
+                <div id="client-vote-options" class="space-y-2.5">
+                    <!-- Dynamic Vote Buttons -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. GAMEPLAY: REVELATION & RESULTS -->
+        <div id="screen-game-revelation" class="hidden py-2 space-y-5 text-center">
+            <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-brand-pink/50 shadow-2xl">
+                <span class="px-3.5 py-1 bg-brand-pink/20 text-brand-pink border border-brand-pink/30 rounded-full text-xs font-bold uppercase tracking-wider">
+                    🎉 Révélation des Z'amis !
+                </span>
+
+                <div class="space-y-2">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">La VRAIE réponse de <span id="rev-leader-name" class="text-brand-yellow font-bold">Leader</span> était :</p>
+                    <div class="py-4 px-6 bg-slate-950 rounded-2xl border border-brand-pink/50 inline-block max-w-full">
+                        <h3 id="rev-leader-answer" class="font-display text-2xl sm:text-3xl font-black text-brand-yellow neon-text-yellow leading-tight">
+                            « ... »
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Synchronized Results Cards -->
+                <div class="text-left space-y-2 pt-2 border-t border-slate-800">
+                    <p class="text-xs text-slate-400 font-bold uppercase">Résultats des Amis :</p>
+                    <div id="rev-friends-results" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
+                        <!-- Dynamic Player Answers -->
+                    </div>
+                </div>
+
+                <!-- Host Control Next Round -->
+                <div id="host-rev-controls" class="hidden pt-3 border-t border-slate-800">
+                    <button onclick="app.hostNextRound()" class="w-full py-4 bg-gradient-to-r from-brand-yellow to-brand-pink text-slate-950 font-black text-lg rounded-2xl shadow-xl hover:opacity-90 transition-all uppercase tracking-wider">
+                        Question Suivante <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. FINAL SCOREBOARD -->
+        <div id="screen-game-final" class="hidden py-4 text-center space-y-6">
+            <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-brand-yellow/50 shadow-2xl">
+                <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-brand-yellow to-amber-600 flex items-center justify-center text-slate-950 text-3xl font-bold shadow-lg">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <h2 class="font-display text-4xl font-black text-white">Classement Final !</h2>
+                    <p class="text-xs text-slate-400 mt-1">Voici le grand tableau des scores de la soirée</p>
+                </div>
+
+                <div id="final-scoreboard-list" class="space-y-2 text-left max-w-md mx-auto">
+                    <!-- Dynamic Final Scores -->
+                </div>
+
+                <button onclick="location.href=location.pathname" class="py-3.5 px-6 bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold rounded-2xl border border-slate-700 text-sm">
+                    <i class="fa-solid fa-rotate-left mr-2"></i> Revenir à l'accueil
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Custom Question Modal (Host) -->
+    <div id="custom-q-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-3xl max-w-md w-full p-6 space-y-4 border border-slate-700">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-display text-lg font-bold text-white">Ajouter une Question</h3>
+                <button onclick="app.toggleCustomQModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400">Astuce : Utilise <code class="text-brand-pink font-bold">{L}</code> dans ta question pour qu'il soit remplacé par le prénom du Leader !</p>
+
+            <input type="text" id="cust-q-text" placeholder="Ex: Quel est le plat préféré de {L} ?" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="text" id="cust-opt-0" placeholder="Option A" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="text" id="cust-opt-1" placeholder="Option B" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="text" id="cust-opt-2" placeholder="Option C" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+            <input type="text" id="cust-opt-3" placeholder="Option D" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+
+            <button onclick="app.saveCustomQuestion()" class="w-full py-3 bg-brand-pink text-slate-950 font-bold text-xs rounded-xl uppercase">
+                Enregistrer la Question
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full glass-panel border-t border-slate-800 py-2.5 px-4 text-center text-[11px] text-slate-400">
+        <p>Les Z'amis &copy; 2026 - Jeu P2P WebRTC sans serveur backend</p>
+    </footer>
+
+    <!-- MAIN JAVASCRIPT GAME LOGIC -->
+    <script>
+        const EMOJIS = ["😎", "🥳", "🦊", "🦁", "🐼", "🦄", "👑", "🚀", "🔥", "🍕", "🥑", "👾"];
+
+        const DEFAULT_QUESTIONS = [
+            {
+                q: "Si {L} devait être arrêté(e) par la police demain, ce serait pour quoi ?",
+                options: ["Tapage nocturne / Fête incontrôlée", "Vol de nourriture dans le frigo", "Excès de vitesse ou conduite chaotique", "Une embrouille ridicule dans la rue"]
+            },
+            {
+                q: "Quel est le plus grand défaut secret de {L} au quotidien ?",
+                options: ["Met 3 heures à répondre aux SMS", "Râle constamment pour un rien", "Oublie toujours ses affaires", "Est un(e) acheteur(se) compulsif(ve)"]
+            },
+            {
+                q: "En soirée apéro, quelle est l'attitude typique de {L} ?",
+                options: ["Le/la DJ officiel(le) qui contrôle la musique", "Le/la philosophe qui refait le monde à 3h", "Celui/Celle qui s'endort sur le canapé", "L'animateur/trice de jeux de société"]
+            },
+            {
+                q: "Si {L} gagnait 1 million d'euros à la loto ce soir, sa 1ère dépense ?",
+                options: ["Voyage de rêve avec toute la bande", "Acheter un bien immobilier de fou", "Une voiture / gadget de luxe", "Il/Elle place tout sans rien dire"]
+            },
+            {
+                q: "Face à une invasion de Zombies, que fait {L} en premier ?",
+                options: ["Prend la tête du groupe et prépare les armes", "Panique et se cache sous son lit", "Se fait mordre dans les 5 premières minutes", "Tente de négocier pacifiquement"]
+            },
+            {
+                q: "En vacances à la plage, {L} est plutôt du genre...",
+                options: ["Cramé(e) au soleil après 20 minutes", "Toujours dans l'eau à faire des activités", "Allongé(e) sur la serviette à dormir", "Au bar de la plage à commander des cocktails"]
+            },
+            {
+                q: "Quelle est la qualité la plus appréciée chez {L} par ses potes ?",
+                options: ["Sa loyauté à toute épreuve", "Son humour et sa joie de vivre", "Ses précieux conseils", "Toujours partant(e) pour sortir"]
+            },
+            {
+                q: "Quel film / série correspond le mieux à la vie de {L} ?",
+                options: ["Friends (Une bande de potes déjantés)", "Fast & Furious (Toujours à 100 à l'heure)", "The Office (Situations absurdes)", "Man vs Wild (Survie extrême)"]
+            },
+            {
+                q: "Si {L} devait participer à une émission de TV, ce serait :",
+                options: ["Koh-Lanta", "Top Chef", "Les Anges de la Réalité", "N'oubliez pas les paroles"]
+            },
+            {
+                q: "Quelle est la plus grande peur cachée de {L} ?",
+                options: ["Les petites bêtes (araignées, insectes)", "La panne de batterie sur son téléphone", "Arriver en retard à un rendez-vous", "Le vide ou les manèges à sensations"]
+            }
+        ];
+
+        class ZamisP2PGame {
+            constructor() {
+                this.role = null; // 'HOST' or 'CLIENT'
+                this.peer = null;
+                this.peerId = null;
+                this.roomCode = null;
+                
+                // HOST state
+                this.clientConns = {}; // peerId -> conn
+                this.players = {}; // peerId -> { id, name, avatar, score }
+                this.questionsBank = [...DEFAULT_QUESTIONS];
+                this.currentRound = 0;
+                this.totalRounds = 10;
+                this.leaderIndex = 0;
+                this.leaderMode = 'ROTATING'; // 'ROTATING' or 'FIXED'
+                this.fixedLeaderId = null;
+                this.currentQuestion = null;
+                this.leaderChoice = null;
+                this.votes = {}; // peerId -> optionIndex
+                this.currentGameState = 'LOBBY'; // 'LOBBY', 'LEADER', 'VOTE', 'REVELATION', 'FINAL'
+
+                // TIMER state
+                this.timerDuration = 30; // seconds (0 = disabled)
+                this.timerInterval = null;
+                this.timeRemaining = 0;
+
+                // CLIENT state
+                this.hostConn = null;
+                this.myAvatar = "😎";
+                this.myName = "";
+                this.soundEnabled = true;
+
+                this.initApp();
+            }
+
+            initApp() {
+                this.renderAvatarPicker();
+
+                // Check URL params for direct join code
+                const urlParams = new URLSearchParams(window.location.search);
+                const codeParam = urlParams.get('room');
+                if (codeParam) {
+                    document.getElementById('join-code-input').value = codeParam.toUpperCase();
+                    this.showJoinForm();
+                }
+            }
+
+            /* UI UTILS */
+            showScreen(id) {
+                const screens = ['landing', 'player-setup', 'host-lobby', 'client-waiting', 'game-leader', 'game-vote', 'game-revelation', 'game-final'];
+                screens.forEach(s => document.getElementById(`screen-${s}`).classList.add('hidden'));
+                document.getElementById(`screen-${id}`).classList.remove('hidden');
+
+                // Toggle host global floating banner
+                const banner = document.getElementById('tv-code-overlay-banner');
+                if (this.role === 'HOST' && id !== 'landing' && id !== 'host-lobby') {
+                    banner.classList.remove('hidden');
+                } else {
+                    banner.classList.add('hidden');
+                }
+            }
+
+            showToast(msg) {
+                const t = document.getElementById('toast');
+                document.getElementById('toast-msg').innerText = msg;
+                t.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+                setTimeout(() => {
+                    t.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+                }, 3000);
+            }
+
+            updateStatus(connected, label) {
+                const dot = document.getElementById('conn-dot');
+                const text = document.getElementById('conn-text');
+                if (connected) {
+                    dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+                    text.innerText = label || "Connecté";
+                    text.className = "text-[11px] text-emerald-400 font-semibold";
+                } else {
+                    dot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+                    text.innerText = label || "Inactif";
+                    text.className = "text-[11px] text-slate-400 font-semibold";
+                }
+            }
+
+            toggleSound() {
+                this.soundEnabled = !this.soundEnabled;
+                this.showToast(this.soundEnabled ? "Sons activés 🔊" : "Sons coupés 🔇");
+            }
+
+            playSound(type) {
+                if (!this.soundEnabled) return;
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+
+                    if (type === 'pop') {
+                        osc.frequency.setValueAtTime(350, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.08);
+                        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                        osc.start(); osc.stop(ctx.currentTime + 0.08);
+                    } else if (type === 'fanfare') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(440, ctx.currentTime);
+                        osc.frequency.setValueAtTime(554, ctx.currentTime + 0.1);
+                        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.2);
+                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                        osc.start(); osc.stop(ctx.currentTime + 0.4);
+                    }
+                } catch(e) {}
+            }
+
+            renderAvatarPicker() {
+                const grid = document.getElementById('avatar-grid');
+                grid.innerHTML = EMOJIS.map(e => `
+                    <button type="button" onclick="app.selectAvatar('${e}')"
+                            class="w-10 h-10 text-xl rounded-xl border ${this.myAvatar === e ? 'bg-brand-cyan/30 border-brand-cyan scale-110' : 'bg-slate-900 border-slate-700'} flex items-center justify-center transition-all">
+                        ${e}
+                    </button>
+                `).join('');
+            }
+
+            selectAvatar(e) {
+                this.myAvatar = e;
+                this.renderAvatarPicker();
+            }
+
+            setTimerDuration(val) {
+                this.timerDuration = parseInt(val, 10);
+                this.showToast(`Minuteur réglé sur ${this.timerDuration === 0 ? 'Désactivé' : this.timerDuration + 's'}`);
+            }
+
+            setLeaderMode(mode) {
+                this.leaderMode = mode;
+                const fixedContainer = document.getElementById('fixed-leader-container');
+                if (mode === 'FIXED') {
+                    fixedContainer.classList.remove('hidden');
+                    this.updateFixedLeaderDropdown();
+                    this.showToast("Mode Super Leader Fixe activé 👑");
+                } else {
+                    fixedContainer.classList.add('hidden');
+                    this.showToast("Mode Leader Rotatif activé 🔄");
+                }
+            }
+
+            setFixedLeader(peerId) {
+                this.fixedLeaderId = peerId;
+                if (peerId && this.players[peerId]) {
+                    this.showToast(`Super Leader sélectionné : ${this.players[peerId].name} 👑`);
+                }
+            }
+
+            updateFixedLeaderDropdown() {
+                const select = document.getElementById('fixed-leader-select');
+                const playersArr = Object.values(this.players);
+                
+                select.innerHTML = `<option value="">-- Sélectionner --</option>` + 
+                    playersArr.map(p => `
+                        <option value="${p.id}" ${this.fixedLeaderId === p.id ? 'selected' : ''}>
+                            ${p.avatar} ${p.name}
+                        </option>
+                    `).join('');
+            }
+
+            startTimer(seconds, onExpire) {
+                this.stopTimer();
+                if (seconds <= 0) {
+                    document.getElementById('timer-box-leader').classList.add('hidden');
+                    document.getElementById('timer-box-vote').classList.add('hidden');
+                    return;
+                }
+
+                document.getElementById('timer-box-leader').classList.remove('hidden');
+                document.getElementById('timer-box-vote').classList.remove('hidden');
+
+                this.timeRemaining = seconds;
+                this.updateTimerUI(this.timeRemaining);
+
+                this.timerInterval = setInterval(() => {
+                    this.timeRemaining -= 1;
+                    this.updateTimerUI(this.timeRemaining);
+
+                    // Broadcast timer tick to clients
+                    if (this.role === 'HOST') {
+                        this.broadcast({ type: 'TIMER_TICK', time: this.timeRemaining });
+                    }
+
+                    if (this.timeRemaining <= 0) {
+                        this.stopTimer();
+                        if (onExpire) onExpire();
+                    }
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            }
+
+            updateTimerUI(secs) {
+                const txt = secs + 's';
+                document.getElementById('timer-count-leader').innerText = txt;
+                document.getElementById('timer-count-vote').innerText = txt;
+                document.getElementById('client-timer-leader').innerText = '⏱️ ' + txt;
+                document.getElementById('client-timer-vote').innerText = '⏱️ ' + txt;
+            }
+
+            /* -------------------------------------------------------------
+               1. HOST P2P INITIALIZATION (PEER MASTER)
+            ------------------------------------------------------------- */
+            initHost() {
+                this.role = 'HOST';
+                // Generate short 4-letter code
+                this.roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+                const peerMasterId = `zamis-room-${this.roomCode}`;
+
+                this.showToast("Création du réseau P2P...");
+
+                this.peer = new Peer(peerMasterId, { debug: 1 });
+
+                this.peer.on('open', (id) => {
+                    this.updateStatus(true, "Hôte P2P Prêt");
+                    
+                    // PROMINENT ROOM CODE DISPLAY
+                    document.getElementById('room-code-badge').classList.remove('hidden');
+                    document.getElementById('header-room-code').innerText = this.roomCode;
+                    document.getElementById('tv-room-code').innerText = this.roomCode;
+                    document.getElementById('tv-room-code-sub').innerText = this.roomCode;
+                    document.getElementById('tv-banner-room-code').innerText = this.roomCode;
+
+                    // Generate QR Code with FIXED BASE URL
+                    const fixedBaseUrl = "https://sites.google.com/view/leszamis-lejeup2pwebrtc/full-page-embed";
+                    const joinUrl = `${fixedBaseUrl}?room=${this.roomCode}`;
+                    
+                    document.getElementById('qrcode').innerHTML = "";
+                    new QRCode(document.getElementById('qrcode'), {
+                        text: joinUrl,
+                        width: 140,
+                        height: 140
+                    });
+
+                    this.showScreen('host-lobby');
+                });
+
+                this.peer.on('connection', (conn) => {
+                    this.handleIncomingClientConnection(conn);
+                });
+
+                this.peer.on('error', (err) => {
+                    console.error("Peer Error:", err);
+                    if (err.type === 'unavailable-id') {
+                        // Retry with new code if collision
+                        this.initHost();
+                    } else {
+                        this.showToast("Erreur P2P: " + err.type);
+                    }
+                });
+            }
+
+            handleIncomingClientConnection(conn) {
+                conn.on('open', () => {
+                    this.clientConns[conn.peer] = conn;
+                });
+
+                conn.on('data', (data) => {
+                    this.handleClientMessage(conn.peer, data);
+                });
+
+                conn.on('close', () => {
+                    delete this.clientConns[conn.peer];
+                    delete this.players[conn.peer];
+                    this.updateHostLobbyUI();
+                });
+            }
+
+            handleClientMessage(peerId, msg) {
+                if (msg.type === 'JOIN') {
+                    // Check if player already existed
+                    const existingPlayerKey = Object.keys(this.players).find(
+                        id => this.players[id].name.toLowerCase() === msg.name.trim().toLowerCase()
+                    );
+
+                    if (existingPlayerKey) {
+                        // RECONNECTION
+                        const prevScore = this.players[existingPlayerKey].score;
+                        delete this.players[existingPlayerKey];
+
+                        this.players[peerId] = {
+                            id: peerId,
+                            name: msg.name,
+                            avatar: msg.avatar,
+                            score: prevScore
+                        };
+                    } else {
+                        // NEW PLAYER
+                        this.players[peerId] = {
+                            id: peerId,
+                            name: msg.name,
+                            avatar: msg.avatar,
+                            score: 0
+                        };
+                    }
+
+                    // Send confirmation to client
+                    this.clientConns[peerId].send({ type: 'JOINED_SUCCESS', roomCode: this.roomCode });
+                    this.updateHostLobbyUI();
+                    this.playSound('pop');
+
+                    // LATE JOIN SUPPORT: If game is running, sync state
+                    if (this.currentGameState !== 'LOBBY') {
+                        const playerIds = Object.keys(this.players);
+                        let leaderId;
+                        if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                            leaderId = this.fixedLeaderId;
+                        } else {
+                            leaderId = playerIds[this.leaderIndex % playerIds.length];
+                        }
+                        const leader = this.players[leaderId];
+
+                        this.clientConns[peerId].send({
+                            type: 'LATE_JOIN_DATA',
+                            gameState: this.currentGameState,
+                            question: this.currentQuestion,
+                            leaderId: leaderId,
+                            leaderName: leader ? leader.name : '',
+                            leaderChoice: this.leaderChoice,
+                            leaderAnswerText: (this.leaderChoice !== null && this.currentQuestion) ? this.currentQuestion.options[this.leaderChoice] : '',
+                            votes: this.votes,
+                            players: this.players,
+                            currentRound: this.currentRound,
+                            totalRounds: this.totalRounds
+                        });
+
+                        if (this.currentGameState === 'VOTE') {
+                            this.updateHostVoteProgress();
+                        }
+                    }
+                }
+                else if (msg.type === 'LEADER_CHOICE') {
+                    this.stopTimer();
+                    this.leaderChoice = msg.choiceIndex;
+                    this.currentGameState = 'VOTE';
+                    
+                    const playerIds = Object.keys(this.players);
+                    let leaderId;
+                    if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                        leaderId = this.fixedLeaderId;
+                    } else {
+                        leaderId = playerIds[this.leaderIndex % playerIds.length];
+                    }
+
+                    this.broadcast({
+                        type: 'STATE_VOTE',
+                        question: this.currentQuestion,
+                        leaderName: this.players[leaderId].name,
+                        leaderId: leaderId
+                    });
+                    this.renderHostVotePhase();
+                }
+                else if (msg.type === 'FRIEND_VOTE') {
+                    this.votes[peerId] = msg.choiceIndex;
+                    this.playSound('pop');
+                    this.updateHostVoteProgress();
+
+                    // Check if all non-leaders voted
+                    const playerIds = Object.keys(this.players);
+                    let leaderId;
+                    if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                        leaderId = this.fixedLeaderId;
+                    } else {
+                        leaderId = playerIds[this.leaderIndex % playerIds.length];
+                    }
+                    const nonLeaders = playerIds.filter(id => id !== leaderId);
+
+                    if (Object.keys(this.votes).length >= nonLeaders.length) {
+                        this.stopTimer();
+                        setTimeout(() => this.hostForceReveal(), 800);
+                    }
+                }
+            }
+
+            updateHostLobbyUI() {
+                const list = document.getElementById('tv-player-list');
+                const playersArr = Object.values(this.players);
+                document.getElementById('tv-player-count').innerText = playersArr.length;
+
+                list.innerHTML = playersArr.map(p => `
+                    <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center space-x-2">
+                        <span class="text-xl">${p.avatar}</span>
+                        <span class="font-bold text-xs text-slate-200 truncate">${p.name}</span>
+                        ${this.leaderMode === 'FIXED' && this.fixedLeaderId === p.id ? '<span class="text-xs">👑</span>' : ''}
+                    </div>
+                `).join('');
+
+                if (this.leaderMode === 'FIXED') {
+                    this.updateFixedLeaderDropdown();
+                }
+            }
+
+            broadcast(data) {
+                Object.values(this.clientConns).forEach(conn => {
+                    if (conn && conn.open) conn.send(data);
+                });
+            }
+
+            /* HOST GAMEPLAY LOGIC */
+            startHostGame() {
+                const playerIds = Object.keys(this.players);
+                if (playerIds.length < 2) return alert("Il faut au moins 2 joueurs pour jouer !");
+
+                if (this.leaderMode === 'FIXED' && (!this.fixedLeaderId || !this.players[this.fixedLeaderId])) {
+                    return alert("Veuillez sélectionner qui sera le Super Leader Fixe de la partie !");
+                }
+
+                this.currentRound = 1;
+                this.leaderIndex = 0;
+                this.nextRoundHost();
+            }
+
+            nextRoundHost() {
+                this.stopTimer();
+                this.votes = {};
+                this.leaderChoice = null;
+                this.currentGameState = 'LEADER';
+
+                const playerIds = Object.keys(this.players);
+                
+                // Determine leader based on active mode
+                let leaderId;
+                if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                    leaderId = this.fixedLeaderId;
+                } else {
+                    leaderId = playerIds[this.leaderIndex % playerIds.length];
+                }
+                
+                const leader = this.players[leaderId];
+
+                // Pick question
+                const rawQ = this.questionsBank[(this.currentRound - 1) % this.questionsBank.length];
+                this.currentQuestion = {
+                    text: rawQ.q.replace(/\{L\}/g, leader.name),
+                    options: rawQ.options
+                };
+
+                // Show Host UI
+                this.showScreen('game-leader');
+                document.getElementById('host-leader-view').classList.remove('hidden');
+                document.getElementById('client-leader-active').classList.add('hidden');
+                document.getElementById('client-leader-waiting').classList.add('hidden');
+
+                document.getElementById('host-q-round').innerText = this.currentRound;
+                document.getElementById('host-q-total').innerText = this.totalRounds;
+                document.getElementById('host-q-leader-name').innerText = `Super Leader : ${leader.avatar} ${leader.name}`;
+                document.getElementById('host-q-text-1').innerText = this.currentQuestion.text;
+                document.getElementById('host-leader-nickname-span').innerText = leader.name;
+
+                // Broadcast to clients
+                this.broadcast({
+                    type: 'STATE_LEADER',
+                    question: this.currentQuestion,
+                    leaderId: leaderId,
+                    leaderName: leader.name
+                });
+
+                // Start Leader Timer
+                this.startTimer(this.timerDuration, () => {
+                    // Timer expired for leader -> Choose default option 0 or skip
+                    this.showToast("Temps écoulé pour le Leader !");
+                    this.leaderChoice = 0; // Default first option if expired
+                    this.renderHostVotePhase();
+                    this.broadcast({
+                        type: 'STATE_VOTE',
+                        question: this.currentQuestion,
+                        leaderName: leader.name,
+                        leaderId: leaderId
+                    });
+                });
+            }
+
+            renderHostVotePhase() {
+                this.stopTimer();
+                this.currentGameState = 'VOTE';
+                const playerIds = Object.keys(this.players);
+                let leaderId;
+                if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                    leaderId = this.fixedLeaderId;
+                } else {
+                    leaderId = playerIds[this.leaderIndex % playerIds.length];
+                }
+                const leader = this.players[leaderId];
+
+                this.showScreen('game-vote');
+                document.getElementById('host-vote-view').classList.remove('hidden');
+                document.getElementById('client-vote-active').classList.add('hidden');
+
+                document.getElementById('host-vote-target-leader').innerText = leader.name;
+                document.getElementById('host-q-text-2').innerText = this.currentQuestion.text;
+
+                this.updateHostVoteProgress();
+
+                // Start Assembly Vote Timer
+                this.startTimer(this.timerDuration, () => {
+                    this.showToast("Temps d'assemblée écoulé !");
+                    this.hostForceReveal();
+                });
+            }
+
+            updateHostVoteProgress() {
+                const playerIds = Object.keys(this.players);
+                let leaderId;
+                if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                    leaderId = this.fixedLeaderId;
+                } else {
+                    leaderId = playerIds[this.leaderIndex % playerIds.length];
+                }
+                const grid = document.getElementById('host-live-votes-grid');
+
+                grid.innerHTML = playerIds.filter(id => id !== leaderId).map(id => {
+                    const p = this.players[id];
+                    const voted = this.votes[id] !== undefined;
+                    return `
+                        <span class="px-3 py-1.5 rounded-xl text-xs font-bold ${voted ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-900 text-slate-500 border border-slate-800'}">
+                            ${p.avatar} ${p.name} ${voted ? '✓ Répondu' : '...'}
+                        </span>
+                    `;
+                }).join('');
+            }
+
+            hostForceReveal() {
+                this.stopTimer();
+                this.currentGameState = 'REVELATION';
+
+                // Calculate Scores
+                if (this.leaderChoice !== null) {
+                    Object.entries(this.votes).forEach(([pid, vIdx]) => {
+                        if (vIdx === this.leaderChoice && this.players[pid]) {
+                            this.players[pid].score += 1;
+                        }
+                    });
+                }
+
+                const playerIds = Object.keys(this.players);
+                let leaderId;
+                if (this.leaderMode === 'FIXED' && this.fixedLeaderId && this.players[this.fixedLeaderId]) {
+                    leaderId = this.fixedLeaderId;
+                } else {
+                    leaderId = playerIds[this.leaderIndex % playerIds.length];
+                }
+                const leader = this.players[leaderId];
+
+                // Show Revelation on Host
+                this.showScreen('game-revelation');
+                document.getElementById('host-rev-controls').classList.remove('hidden');
+
+                document.getElementById('rev-leader-name').innerText = leader.name;
+                document.getElementById('rev-leader-answer').innerText = this.leaderChoice !== null ? `« ${this.currentQuestion.options[this.leaderChoice]} »` : "« Pas de réponse »";
+
+                const resultsDiv = document.getElementById('rev-friends-results');
+                resultsDiv.innerHTML = Object.entries(this.votes).map(([pid, vIdx]) => {
+                    const p = this.players[pid];
+                    if (!p) return '';
+                    const isCorrect = this.leaderChoice !== null && vIdx === this.leaderChoice;
+                    return `
+                        <div class="p-3 rounded-xl ${isCorrect ? 'bg-emerald-950/60 border border-emerald-500/40' : 'bg-slate-900 border border-slate-800'} flex items-center justify-between text-xs">
+                            <span class="font-bold text-white">${p.avatar} ${p.name}</span>
+                            <span class="${isCorrect ? 'text-emerald-300 font-bold' : 'text-slate-400'}">${this.currentQuestion.options[vIdx]} ${isCorrect ? '+1 pt 🎉' : ''}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                this.playSound('fanfare');
+                confetti({ particleCount: 80, spread: 80, origin: { y: 0.6 } });
+
+                // Broadcast Revelation State
+                this.broadcast({
+                    type: 'STATE_REVELATION',
+                    leaderName: leader.name,
+                    leaderChoice: this.leaderChoice,
+                    leaderAnswerText: this.leaderChoice !== null ? this.currentQuestion.options[this.leaderChoice] : '',
+                    votes: this.votes,
+                    players: this.players,
+                    question: this.currentQuestion
+                });
+            }
+
+            hostNextRound() {
+                if (this.currentRound >= this.totalRounds) {
+                    this.hostShowFinalScores();
+                } else {
+                    this.currentRound += 1;
+                    if (this.leaderMode === 'ROTATING') {
+                        this.leaderIndex += 1;
+                    }
+                    this.nextRoundHost();
+                }
+            }
+
+            hostShowFinalScores() {
+                this.currentGameState = 'FINAL';
+                this.showScreen('game-final');
+
+                const sorted = Object.values(this.players).sort((a,b) => b.score - a.score);
+                const list = document.getElementById('final-scoreboard-list');
+
+                list.innerHTML = sorted.map((p, idx) => `
+                    <div class="p-4 rounded-2xl ${idx === 0 ? 'bg-gradient-to-r from-amber-500/20 to-brand-yellow/20 border-2 border-brand-yellow' : 'bg-slate-900 border border-slate-800'} flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="font-black text-lg text-brand-yellow">${idx === 0 ? '👑 1er' : `#${idx+1}`}</span>
+                            <span class="text-2xl">${p.avatar}</span>
+                            <span class="font-bold text-sm text-white">${p.name}</span>
+                        </div>
+                        <span class="font-mono font-black text-lg text-brand-cyan">${p.score} pts</span>
+                    </div>
+                `).join('');
+
+                this.broadcast({
+                    type: 'STATE_FINAL',
+                    players: this.players
+                });
+            }
+
+            /* -------------------------------------------------------------
+               2. CLIENT P2P LOGIC (SMARTPHONE JOIN)
+            ------------------------------------------------------------- */
+            showJoinForm() {
+                const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+                if (code.length < 4) return alert("Veuillez entrer un code de salon valide à 4 lettres !");
+                this.roomCode = code;
+                this.showScreen('player-setup');
+            }
+
+            connectPlayerToHost() {
+                const name = document.getElementById('player-nickname').value.trim();
+                if (!name) return alert("Entre ton prénom ou un pseudo !");
+                this.myName = name;
+                this.role = 'CLIENT';
+
+                this.showToast("Connexion au salon P2P...");
+
+                this.peer = new Peer({ debug: 1 });
+
+                this.peer.on('open', (id) => {
+                    this.peerId = id;
+                    const hostPeerId = `zamis-room-${this.roomCode}`;
+                    this.hostConn = this.peer.connect(hostPeerId);
+
+                    this.hostConn.on('open', () => {
+                        this.updateStatus(true, "Connecté à l'Hôte");
+                        // Send Join Message
+                        this.hostConn.send({
+                            type: 'JOIN',
+                            name: this.myName,
+                            avatar: this.myAvatar
+                        });
+                    });
+
+                    this.hostConn.on('data', (data) => {
+                        this.handleHostMessage(data);
+                    });
+
+                    this.hostConn.on('close', () => {
+                        this.updateStatus(false, "Déconnecté");
+                        this.showToast("Connexion au salon perdue.");
+                    });
+                });
+
+                this.peer.on('error', (err) => {
+                    console.error("Client Peer Error:", err);
+                    alert("Impossible de trouver ce salon. Vérifiez le Code Room !");
+                });
+            }
+
+            handleHostMessage(msg) {
+                if (msg.type === 'JOINED_SUCCESS') {
+                    this.showScreen('client-waiting');
+                    this.showToast("Inscrit avec succès !");
+                }
+                else if (msg.type === 'TIMER_TICK') {
+                    this.updateTimerUI(msg.time);
+                }
+                else if (msg.type === 'STATE_LEADER') {
+                    this.showScreen('game-leader');
+                    document.getElementById('host-leader-view').classList.add('hidden');
+
+                    if (msg.leaderId === this.peerId) {
+                        // THIS PLAYER IS LEADER
+                        document.getElementById('client-leader-active').classList.remove('hidden');
+                        document.getElementById('client-leader-waiting').classList.add('hidden');
+                        document.getElementById('client-q-text-leader').innerText = msg.question.text;
+
+                        const optsDiv = document.getElementById('client-leader-options');
+                        optsDiv.innerHTML = msg.question.options.map((opt, idx) => `
+                            <button onclick="app.clientSubmitLeaderChoice(${idx})"
+                                    class="w-full text-left p-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-brand-pink rounded-2xl font-bold text-sm text-slate-100 flex items-center justify-between">
+                                <span>${opt}</span>
+                                <i class="fa-solid fa-chevron-right text-brand-pink text-xs"></i>
+                            </button>
+                        `).join('');
+                    } else {
+                        // WAITING FOR LEADER
+                        document.getElementById('client-leader-active').classList.add('hidden');
+                        document.getElementById('client-leader-waiting').classList.remove('hidden');
+                        document.getElementById('active-leader-name-target').innerText = msg.leaderName;
+                    }
+                }
+                else if (msg.type === 'STATE_VOTE') {
+                    this.showScreen('game-vote');
+                    document.getElementById('host-vote-view').classList.add('hidden');
+
+                    if (msg.leaderId === this.peerId) {
+                        // Leader doesn't vote in friends phase
+                        document.getElementById('client-vote-active').classList.remove('hidden');
+                        document.getElementById('client-q-text-vote').innerText = msg.question.text;
+                        document.getElementById('client-target-leader').innerText = "Toi-même";
+                        document.getElementById('client-vote-options').innerHTML = `
+                            <div class="p-6 bg-slate-900 rounded-2xl border border-brand-pink/40 text-center text-xs text-brand-pink font-bold">
+                                <i class="fa-solid fa-lock mr-1"></i> Tu es le Leader pour ce tour ! Les autres amis devinent ton choix.
+                            </div>
+                        `;
+                        document.getElementById('client-voted-notice').classList.add('hidden');
+                    } else {
+                        // FRIENDS VOTING
+                        document.getElementById('client-vote-active').classList.remove('hidden');
+                        document.getElementById('client-q-text-vote').innerText = msg.question.text;
+                        document.getElementById('client-target-leader').innerText = msg.leaderName;
+                        document.getElementById('client-voted-notice').classList.add('hidden');
+
+                        const optsDiv = document.getElementById('client-vote-options');
+                        optsDiv.innerHTML = msg.question.options.map((opt, idx) => `
+                            <button onclick="app.clientSubmitFriendVote(${idx})"
+                                    class="w-full text-left p-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-brand-cyan rounded-2xl font-bold text-sm text-slate-100 flex items-center justify-between">
+                                <span>${opt}</span>
+                                <i class="fa-solid fa-paper-plane text-brand-cyan text-xs"></i>
+                            </button>
+                        `).join('');
+                    }
+                }
+                else if (msg.type === 'STATE_REVELATION') {
+                    this.showScreen('game-revelation');
+                    document.getElementById('host-rev-controls').classList.add('hidden');
+
+                    document.getElementById('rev-leader-name').innerText = msg.leaderName;
+                    document.getElementById('rev-leader-answer').innerText = msg.leaderChoice !== null ? `« ${msg.leaderAnswerText} »` : "« Pas de réponse »";
+
+                    const resultsDiv = document.getElementById('rev-friends-results');
+                    resultsDiv.innerHTML = Object.entries(msg.votes).map(([pid, vIdx]) => {
+                        const p = msg.players[pid];
+                        if (!p) return '';
+                        const isCorrect = msg.leaderChoice !== null && vIdx === msg.leaderChoice;
+                        return `
+                            <div class="p-3 rounded-xl ${isCorrect ? 'bg-emerald-950/60 border border-emerald-500/40' : 'bg-slate-900 border border-slate-800'} flex items-center justify-between text-xs">
+                                <span class="font-bold text-white">${p.avatar} ${p.name}</span>
+                                <span class="${isCorrect ? 'text-emerald-300 font-bold' : 'text-slate-400'}">${msg.question.options[vIdx]} ${isCorrect ? '+1 pt 🎉' : ''}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                else if (msg.type === 'STATE_FINAL') {
+                    this.showScreen('game-final');
+                    const sorted = Object.values(msg.players).sort((a,b) => b.score - a.score);
+                    const list = document.getElementById('final-scoreboard-list');
+
+                    list.innerHTML = sorted.map((p, idx) => `
+                        <div class="p-4 rounded-2xl ${idx === 0 ? 'bg-gradient-to-r from-amber-500/20 to-brand-yellow/20 border-2 border-brand-yellow' : 'bg-slate-900 border border-slate-800'} flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="font-black text-lg text-brand-yellow">${idx === 0 ? '👑 1er' : `#${idx+1}`}</span>
+                                <span class="text-2xl">${p.avatar}</span>
+                                <span class="font-bold text-sm text-white">${p.name}</span>
+                            </div>
+                            <span class="font-mono font-black text-lg text-brand-cyan">${p.score} pts</span>
+                        </div>
+                    `).join('');
+                }
+                else if (msg.type === 'LATE_JOIN_DATA') {
+                    this.showToast("Partie synchronisée !");
+                    if (msg.gameState === 'LEADER') {
+                        this.handleHostMessage({ type: 'STATE_LEADER', question: msg.question, leaderId: msg.leaderId, leaderName: msg.leaderName });
+                    } else if (msg.gameState === 'VOTE') {
+                        this.handleHostMessage({ type: 'STATE_VOTE', question: msg.question, leaderId: msg.leaderId, leaderName: msg.leaderName });
+                    } else if (msg.gameState === 'REVELATION') {
+                        this.handleHostMessage({ type: 'STATE_REVELATION', leaderName: msg.leaderName, leaderChoice: msg.leaderChoice, leaderAnswerText: msg.leaderAnswerText, votes: msg.votes, players: msg.players, question: msg.question });
+                    }
+                }
+            }
+
+            clientSubmitLeaderChoice(index) {
+                if (!this.hostConn) return;
+                this.hostConn.send({ type: 'LEADER_CHOICE', choiceIndex: index });
+                document.getElementById('client-leader-options').innerHTML = `
+                    <div class="p-6 bg-emerald-950/60 border border-emerald-500/40 rounded-2xl text-center text-xs font-bold text-emerald-300">
+                        <i class="fa-solid fa-check-circle text-lg mb-1 block"></i> Réponse enregistrée ! Préparation du vote des potes...
+                    </div>
+                `;
+            }
+
+            clientSubmitFriendVote(index) {
+                if (!this.hostConn) return;
+                this.hostConn.send({ type: 'FRIEND_VOTE', choiceIndex: index });
+                document.getElementById('client-vote-options').innerHTML = '';
+                document.getElementById('client-voted-notice').classList.remove('hidden');
+            }
+
+            /* CUSTOM QUESTIONS MODAL */
+            toggleCustomQModal() {
+                document.getElementById('custom-q-modal').classList.toggle('hidden');
+            }
+
+            saveCustomQuestion() {
+                const text = document.getElementById('cust-q-text').value.trim();
+                const o0 = document.getElementById('cust-opt-0').value.trim();
+                const o1 = document.getElementById('cust-opt-1').value.trim();
+                const o2 = document.getElementById('cust-opt-2').value.trim();
+                const o3 = document.getElementById('cust-opt-3').value.trim();
+
+                if (!text || !o0 || !o1 || !o2 || !o3) {
+                    return alert("Remplissez le texte de la question et les 4 options !");
+                }
+
+                this.questionsBank.unshift({
+                    q: text,
+                    options: [o0, o1, o2, o3]
+                });
+
+                this.toggleCustomQModal();
+                this.showToast("Question ajoutée avec succès !");
+                document.getElementById('cust-q-text').value = '';
+                document.getElementById('cust-opt-0').value = '';
+                document.getElementById('cust-opt-1').value = '';
+                document.getElementById('cust-opt-2').value = '';
+                document.getElementById('cust-opt-3').value = '';
+            }
+        }
+
+        // Initialize App instance
+        window.onload = () => {
+            window.app = new ZamisP2PGame();
+        };
+    </script>
+</body>
+</html>
