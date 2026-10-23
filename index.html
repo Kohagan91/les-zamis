@@ -51,58 +51,43 @@
                     keyframes: {
                         glow: {
                             '0%': { boxShadow: '0 0 15px rgba(255, 46, 147, 0.4)' },
-                            '100%': { boxShadow: '0 0 30px rgba(0, 240, 255, 0.7)' },
+                            '100%': { boxShadow: '0 0 30px rgba(0, 240, 255, 0.7)' }
                         }
                     }
                 }
             }
-        }
+        };
     </script>
-
     <style>
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: radial-gradient(circle at top center, #2e1065 0%, #0f172a 70%);
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
         }
-        .font-display { font-family: 'Fredoka', sans-serif; }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: #8B5CF6; border-radius: 4px; }
-
         .glass-panel {
-            background: rgba(30, 41, 59, 0.85);
+            background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
         }
-
-        .neon-text-pink { text-shadow: 0 0 12px rgba(255, 46, 147, 0.6); }
-        .neon-text-yellow { text-shadow: 0 0 12px rgba(255, 199, 0, 0.6); }
-        .neon-text-cyan { text-shadow: 0 0 12px rgba(0, 240, 255, 0.6); }
-
-        #qrcode img {
-            margin: 0 auto;
-            border-radius: 0.75rem;
-            padding: 0.5rem;
-            background: #ffffff;
+        .neon-text-yellow {
+            text-shadow: 0 0 10px rgba(255, 199, 0, 0.5);
         }
     </style>
 </head>
-<body class="h-full min-h-screen flex flex-col justify-between text-slate-100 select-none overflow-x-hidden">
+<body class="min-h-screen flex flex-col font-sans bg-slate-950 text-slate-100">
 
     <!-- Header Navigation -->
-    <header class="w-full glass-panel border-b border-slate-800 px-4 py-3 sticky top-0 z-40">
-        <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <!-- Logo -->
-            <div class="flex items-center space-x-2.5 cursor-pointer" onclick="location.href=location.pathname">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-pink to-brand-yellow flex items-center justify-center transform -rotate-6 shadow-lg">
-                    <i class="fa-solid fa-heart-pulse text-xl text-slate-950"></i>
+    <header class="w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-5xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-pink to-brand-purple flex items-center justify-center font-display font-black text-xl text-white shadow-lg shadow-brand-pink/20">
+                    Z
                 </div>
                 <div>
-                    <h1 class="font-display text-xl font-black bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-cyan bg-clip-text text-transparent leading-none">
-                        LES Z'AMIS
+                    <h1 class="font-display font-bold text-lg leading-tight tracking-wide text-white">
+                        Les Z'amis
                     </h1>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Peer-To-Peer Direct (WebRTC)</p>
+                    <p class="text-[10px] text-slate-400 font-medium">Jeu d'ambiance P2P</p>
                 </div>
             </div>
 
@@ -291,6 +276,18 @@
                                     <option value="">-- Sélectionner --</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <!-- Total Rounds Setting -->
+                        <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                            <span class="font-bold text-slate-300"><i class="fa-solid fa-list-ol text-brand-cyan mr-1"></i> Nombre de questions :</span>
+                            <select id="total-rounds-select" onchange="app.setTotalRounds(this.value)"
+                                    class="bg-slate-900 border border-slate-700 text-brand-cyan font-bold px-3 py-1.5 rounded-xl focus:outline-none">
+                                <option value="5">5 questions (Rapide)</option>
+                                <option value="10" selected>10 questions (Standard)</option>
+                                <option value="15">15 questions (Longue party)</option>
+                                <option value="20">20 questions (Marathon)</option>
+                            </select>
                         </div>
 
                         <!-- Timer Option Setting -->
@@ -602,6 +599,26 @@
             {
                 q: "Quelle est la plus grande peur cachée de {L} ?",
                 options: ["Les petites bêtes (araignées, insectes)", "La panne de batterie sur son téléphone", "Arriver en retard à un rendez-vous", "Le vide ou les manèges à sensations"]
+            },
+            {
+                q: "Si {L} pouvait avoir un super-pouvoir, ce serait quoi ?",
+                options: ["Téléportation instantanée", "Lire dans les pensées", "Invisibilité à volonté", "Arrêter le temps"]
+            },
+            {
+                q: "Quelle est la pire habitude culinaire de {L} ?",
+                options: ["Mettre du ketchup/mousse partout", "Manger de la pizza/fast-food au petit déj", "Grignoter tard le soir au lit", "Ne jamais finir ses assiettes"]
+            },
+            {
+                q: "Si {L} se retrouvait coincé(e) dans un ascenseur avec qui que ce soit, {L}...",
+                options: ["Raconte toute sa vie et devient pote en 5 min", "Garde le silence et regarde anxieusement son téléphone", "Tente d'ouvrir les portes avec ses mains", "Touche à tous les boutons en paniquant"]
+            },
+            {
+                q: "En compétition de karaoké, {L} choisirait quelle chanson ?",
+                options: ["Une chanson de variéte française culte", "Un morceau de rap des années 2000", "Un tube pop ultra connu", "Une chanson de dessin animé Disney"]
+            },
+            {
+                q: "Quel est le talent caché le plus surprenant de {L} ?",
+                options: ["Faire rire la galerie en toute circonstance", "Imiter parfaitement des voix/personnes", "Retenir des anecdotes inutiles par cœur", "Trouver des bons plans et réductions partout"]
             }
         ];
 
@@ -734,6 +751,11 @@
                 this.renderAvatarPicker();
             }
 
+            setTotalRounds(val) {
+                this.totalRounds = parseInt(val, 10);
+                this.showToast(`Partie réglée sur ${this.totalRounds} questions 🎯`);
+            }
+
             setTimerDuration(val) {
                 this.timerDuration = parseInt(val, 10);
                 this.showToast(`Minuteur réglé sur ${this.timerDuration === 0 ? 'Désactivé' : this.timerDuration + 's'}`);
@@ -839,9 +861,9 @@
                     document.getElementById('tv-room-code-sub').innerText = this.roomCode;
                     document.getElementById('tv-banner-room-code').innerText = this.roomCode;
 
-                    // Generate QR Code with FIXED BASE URL
-                    const fixedBaseUrl = "https://kohagan91.github.io/les-zamis/";
-                    const joinUrl = `${fixedBaseUrl}?room=${this.roomCode}`;
+                    // Generate QR Code with DYNAMIC CURRENT URL
+                    const currentBaseUrl = window.location.href.split('?')[0];
+                    const joinUrl = `${currentBaseUrl}?room=${this.roomCode}`;
                     
                     document.getElementById('qrcode').innerHTML = "";
                     new QRCode(document.getElementById('qrcode'), {
@@ -1043,10 +1065,9 @@
                 } else {
                     leaderId = playerIds[this.leaderIndex % playerIds.length];
                 }
-                
                 const leader = this.players[leaderId];
 
-                // Pick question
+                // Pick a question
                 const rawQ = this.questionsBank[(this.currentRound - 1) % this.questionsBank.length];
                 this.currentQuestion = {
                     text: rawQ.q.replace(/\{L\}/g, leader.name),
@@ -1061,30 +1082,27 @@
 
                 document.getElementById('host-q-round').innerText = this.currentRound;
                 document.getElementById('host-q-total').innerText = this.totalRounds;
-                document.getElementById('host-q-leader-name').innerText = `Super Leader : ${leader.avatar} ${leader.name}`;
-                document.getElementById('host-q-text-1').innerText = this.currentQuestion.text;
+                document.getElementById('host-q-leader-name').innerText = `Question pour ${leader.name}`;
                 document.getElementById('host-leader-nickname-span').innerText = leader.name;
+                document.getElementById('host-q-text-1').innerText = this.currentQuestion.text;
 
-                // Broadcast to clients
+                // Broadcast Leader Phase to Clients
                 this.broadcast({
                     type: 'STATE_LEADER',
                     question: this.currentQuestion,
                     leaderId: leaderId,
-                    leaderName: leader.name
+                    leaderName: leader.name,
+                    currentRound: this.currentRound,
+                    totalRounds: this.totalRounds
                 });
 
-                // Start Leader Timer
+                // Start Timer for Leader Selection
                 this.startTimer(this.timerDuration, () => {
-                    // Timer expired for leader -> Choose default option 0 or skip
-                    this.showToast("Temps écoulé pour le Leader !");
-                    this.leaderChoice = 0; // Default first option if expired
+                    this.showToast("Temps du Leader écoulé !");
+                    if (this.leaderChoice === null) {
+                        this.leaderChoice = 0; // default choice if timed out
+                    }
                     this.renderHostVotePhase();
-                    this.broadcast({
-                        type: 'STATE_VOTE',
-                        question: this.currentQuestion,
-                        leaderName: leader.name,
-                        leaderId: leaderId
-                    });
                 });
             }
 
